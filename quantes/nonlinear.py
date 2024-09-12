@@ -209,7 +209,7 @@ class KRR:
 
 
     def qt(self, tau=0.5, alpha=1, init=None, intercept=True, 
-           smooth=False, h=0., method='L-BFGS-B', solver='osqp', 
+           smooth=False, h=0., method='L-BFGS-B', solver='osqp',
            tol=1e-8, options=None, x=None):
         '''
             Fit quantile kernel ridge regression
