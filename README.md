@@ -215,10 +215,10 @@ print('Mean squared prediction error of ES KRR:', np.mean((es_test - es_pred)**2
 lp = LocPoly(X, Y) # default kernel is Gaussian
 qt_fit = lp.qt_predict(x0=X, tau=tau, bw=0.5, degree=1)
 qt_pred = lp.qt_predict(x0=X_test, tau=tau, bw=0.5, degree=1)
-print('Mean squared prediction error of quantile local linear:', np.mean((qt_test - qt_pred)**2)) 
+print('Mean squared prediction error of local linear ES:', np.mean((qt_test - qt_pred)**2))
 
-es_pred = lp.es(x0=X_test, tau=tau, bw=1, degree=2, fit_q=qt_fit)
-print('Mean squared prediction error of ES local quadratic:', np.mean((es_test - es_pred)**2))
+es_pred = lp.es(x0=X_test, tau=tau, bw=1, degree=1, fit_q=qt_fit)
+print('Mean squared prediction error of local linear ES:', np.mean((es_test - es_pred)**2))
 ```
 
 
@@ -239,4 +239,3 @@ Tan, K. M., Wang, L. and Zhou, W.-X. (2022). High-dimensional quantile regressio
 ## License 
 
 This package is released under the GPL-3.0 license.
-
