@@ -6,7 +6,7 @@ The `low_dim` class in the `linear` module applies a convolution smoothing appro
 Estimation and inference for sparse ES regression are currently under construction ([Zhang et al., 2023](https://arxiv.org/abs/2307.02695)). 
 
 
-The `nonlinear` modules contains three classes, `KRR`, `LocPoly` and `FNN`, which implement three nonparametric joint quantile and expected shortfall estimators using kernel ridge regression ([Takeuchi et al., 2006](https://www.jmlr.org/papers/v7/takeuchi06a.html)), local polynomial regression, and feedforward neural network regression, respectively. For fitting nonparametric QR through the `qt()` method in both `KRR` and `FNN`, there is a `smooth` option available. When set to `TRUE`, it uses the Gaussian kernel convoluted check loss. For fitting nonparametric ES regression using (nonparametrically) generated surrogate response variables, the `es()` function in `FNN` provides two options: *squared loss* (`robust=FALSE`) and the *Huber loss* (`robust=TRUE`); the `res()` function in `KRR` fits robust ES kernel ridge regression using the Huber loss. Currently, the `es()` function in the `LocPoly` module uses only the squared loss to compute the two-step local polynomial ES regression estimator.
+The `nonlinear` modules contains three classes, `KRR`, `LocPoly` and `FNN`, which implement three nonparametric joint quantile and expected shortfall estimators using kernel ridge regression ([Takeuchi et al., 2006](https://www.jmlr.org/papers/v7/takeuchi06a.html)), local polynomial regression ([Olma, 2021](https://arxiv.org/abs/2109.06150)), and feedforward neural network regression, respectively. For fitting nonparametric QR through the `qt()` method in both `KRR` and `FNN`, there is a `smooth` option available. When set to `TRUE`, it uses the Gaussian kernel convoluted check loss. For fitting nonparametric ES regression using (nonparametrically) generated surrogate response variables, the `es()` method in `FNN` provides two options: *squared loss* (`robust=FALSE`) and the *Huber loss* (`robust=TRUE`); the `res()` method in `KRR` fits robust ES kernel ridge regression using the Huber loss. Currently, the `es()` method in the `LocPoly` module uses only the squared loss to compute the two-step local polynomial ES regression estimator.
 
 
 ## Dependencies
@@ -66,8 +66,8 @@ ci2 = qr.mb_ci(tau=tau)
 # ci2['normal'] : p+1 by 2 numpy array of normal CIs based on bootstrap variance estimates
 ```
 
-The module `high_dim` contains functions that fit high-dimensional sparse quantile regression models through the LAMM algorithm. The default bandwidth value is *max\{0.05, \{&tau;(1- &tau;)\}^0.5 \{ log(p)/n\}^0.25\}*. To choose the penalty level, the `self_tuning` function implements the simulation-based approach proposed by [Belloni & Chernozhukov (2011)](https://doi.org/10.1214/10-AOS827). 
-The `l1` and `irw` functions compute *L<sub>1</sub>*- and IRW-*L<sub>1</sub>*-penalized conquer estimators, respectively. For the latter, the default concave penality is `SCAD` with constant `a=3.7` ([Fan & Li, 2001](https://fan.princeton.edu/papers/01/penlike.pdf)). Given a sequence of penalty levels, the solution paths can be computed by `l1_path` and `irw_path`. 
+The module `high_dim` contains functions that fit high-dimensional sparse quantile regression models through the LAMM algorithm. The default bandwidth value is *max\{0.05, \{&tau;(1- &tau;)\}^0.5 \{ log(p)/n\}^0.25\}*. To choose the penalty level, the `self_tuning` method implements the simulation-based approach proposed by [Belloni & Chernozhukov (2011)](https://doi.org/10.1214/10-AOS827). 
+The `l1` and `irw` methods compute *L<sub>1</sub>*- and IRW-*L<sub>1</sub>*-penalized conquer estimators, respectively. For the latter, the default concave penality is `SCAD` with constant `a=3.7` ([Fan & Li, 2001](https://fan.princeton.edu/papers/01/penlike.pdf)). Given a sequence of penalty levels, the solution paths can be computed by `l1_path` and `irw_path`. 
 
 ```
 p, n = 1028, 256
@@ -128,7 +128,7 @@ print(np.mean((irw_admm_path['beta_seq'] - beta_true.reshape(-1,1))**2, axis=0).
 print()
 ```
 
-The `LR` class in `conquer.joint` contains functions that fit joint (linear) quantile and expected shortfall models. The `joint_fit` function computes joint quantile and ES regression estimates based on FZ loss minimization ([Fissler & Ziegel, 2016](https://doi.org/10.1214/16-AOS1439)). The `twostep_fit` function implements two-stage procesures to compute quantile and ES regression estimates, with the ES part depending on a user-specified `loss`. Options are ``L2``, ``TrunL2``, ``FZ`` and ``Huber``. The `nc_fit` function computes non-crossing counterparts of the ES estimates when `loss` = `L2` or `Huber`.
+The `joint` class in `quantes.linear` contains functions that fit joint (linear) quantile and expected shortfall models. The `fz` method computes joint quantile and ES regression estimates based on FZ loss minimization ([Fissler & Ziegel, 2016](https://doi.org/10.1214/16-AOS1439)). The `twostep` method implements two-stage procesures to compute quantile and ES regression estimates, with the ES part depending on a user-specified `loss`. Options are ``L2``, ``TrunL2``, ``FZ`` and ``Huber``. The `nc` method computes non-crossing counterparts of the ES estimates when `loss` = `L2` or `Huber`.
 
 ```
 import numpy as np
@@ -175,7 +175,7 @@ out = pd.DataFrame(np.c_[(m1['coef_e'], m2['coef_e'], m3['coef_e'], m4['coef_e']
 out
 ```
 
-The `KRR` class in `conquer.nonlinear` contains functions to compute quantile and expected shortfall kernel ridge regression (KRR) estimators, respectively. Recast as a quadratic program ([Takeuchi et al., 2006](https://www.jmlr.org/papers/v7/takeuchi06a.html)), the `qt()` function computes quantile KRR using QP solvers from `qpsolvers` ([Caron et al., 2024](https://pypi.org/project/qpsolvers/)). Setting `smooth=TRUE`, a convolution-smoothed quantile KRR is computed by the BFGS algorithm using `scipy.optimize.minimize`. By plugging in estimated quantiles, the two-step ES KRR estimator and its robust counterpart (using the *Huber loss*) are computed by the `es()` function with `robust=FALSE` and `robust=TRUE`, respectively. The functions `mean()`, `qt()` and `es()` from the `FNN` class in `conquer.joint` compute nonparametric mean, quantile and expected shortfall regression estimators using feedforward neural networks, respectively. 
+The `KRR` class in `quantes.nonlinear` contains functions to compute quantile and expected shortfall kernel ridge regression (KRR) estimators, respectively. Recast as a quadratic program ([Takeuchi et al., 2006](https://www.jmlr.org/papers/v7/takeuchi06a.html)), the `qt()` method computes quantile KRR using QP solvers from `qpsolvers` ([Caron et al., 2024](https://pypi.org/project/qpsolvers/)). Setting `smooth=TRUE`, a convolution-smoothed quantile KRR is computed by the BFGS algorithm using `scipy.optimize.minimize`. By plugging in estimated quantiles, the two-step ES KRR estimator and its robust counterpart (using the *Huber loss*) are computed by the `es()` method with `robust=FALSE` and `robust=TRUE`, respectively. The methods `ls()`, `qt()` and `es()` from the `FNN` class in `quantes.nonlinear` compute nonparametric mean, quantile and expected shortfall regression estimators using feedforward neural networks, respectively. 
 
 ```
 import numpy as np
