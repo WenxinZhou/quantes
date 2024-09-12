@@ -183,42 +183,43 @@ import numpy.random as rgt
 from scipy.stats import norm
 from quantes.nonlinear import KRR, LocPoly
 
-mean_fn = lambda x: np.cos(2*np.pi*(x[:,0])) \
-                    + (1 + np.exp(-x[:,1]-x[:,2]))**(-1) + (1 + x[:,3] \
-                    + x[:,4])**(-3) + (x[:,5] + np.exp(x[:,6]*x[:,7]))**(-1)
-std_fn = lambda x: np.sin(np.pi*(x[:,0] + x[:,1])*0.5) \
-                   + np.log(1 + (x[:,2]*x[:,3]*x[:,4])**2) \
-                   + x[:,7]*(1 + np.exp(-x[:,5]-x[:,6]))**(-1)
+m_fn = lambda x: np.cos(2*np.pi*(x[:,0])) \
+                  + (1 + np.exp(-x[:,1]-x[:,2]))**(-1) + (1 + x[:,3] \
+                  + x[:,4])**(-3) + (x[:,5] + np.exp(x[:,6]*x[:,7]))**(-1)
+s_fn = lambda x: np.sin(np.pi*(x[:,0] + x[:,1])*0.5) \
+                  + np.log(1 + (x[:,2]*x[:,3]*x[:,4])**2) \
+                  + x[:,7]*(1 + np.exp(-x[:,5]-x[:,6]))**(-1)
 n, p = 2048, 8
 X = rgt.uniform(0, 1, (n, p))
-Y = mean_fn(X) + std_fn(X)*rgt.normal(0, 1, n)
+Y = m_fn(X) + s_fn(X)*rgt.normal(0, 1, n)
 tau = 0.2
 qt = norm.ppf(tau)
 es = norm.expect(lambda x : (x if x < qt else 0))/tau
 
 X_test = rgt.uniform(0, 1, (1024, p))
-qt_test = mean_fn(X_test) + std_fn(X_test)*qt
-es_test = mean_fn(X_test) + std_fn(X_test)*es
+qt_test = m_fn(X_test) + s_fn(X_test)*qt
+es_test = m_fn(X_test) + s_fn(X_test)*es
 
-# kernel ridge regression
+# kernel ridge regression (KRR)
 kr = KRR(X, Y, kernel='polynomial', 
          kernel_params={'degree': 3, 'gamma': 1, 'coef0': 1})
 kr.qt(tau=tau, alpha=.5, solver='cvxopt')
 qt_pred = kr.qt_predict(X_test)
-print('Mean squared prediction error of quantile KRR:', np.mean((qt_test - qt_pred)**2))
+print('Mean squared prediction error of quantile-KRR:', np.mean((qt_test - qt_pred)**2))
 
 kr.ES(tau=tau, alpha=2, x=X_test)
 es_pred = kr.pred_e
-print('Mean squared prediction error of ES KRR:', np.mean((es_test - es_pred)**2))
+print('Mean squared prediction error of ES-KRR:', np.mean((es_test - es_pred)**2))
+print()
 
-# local polynomial regression
+# local linear regression (LLR)
 lp = LocPoly(X, Y) # default kernel is Gaussian
 qt_fit = lp.qt_predict(x0=X, tau=tau, bw=0.5, degree=1)
 qt_pred = lp.qt_predict(x0=X_test, tau=tau, bw=0.5, degree=1)
-print('Mean squared prediction error of local linear ES:', np.mean((qt_test - qt_pred)**2))
+print('Mean squared prediction error of quantile-LLR:', np.mean((qt_test - qt_pred)**2))
 
 es_pred = lp.es(x0=X_test, tau=tau, bw=1, degree=1, fit_q=qt_fit)
-print('Mean squared prediction error of local linear ES:', np.mean((es_test - es_pred)**2))
+print('Mean squared prediction error of ES-LLR:', np.mean((es_test - es_pred)**2))
 ```
 
 
