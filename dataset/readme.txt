@@ -1,0 +1,2 @@
+The original datasets are downloaded from https://archive.ics.uci.edu/dataset/501/beijing+multi+site+air+quality+data. For the real data analysis, we process the original hourly data as follows: (i) transform the original hourly (0–23 hr) air pollutant and meteorological data into daily data by averaging; (ii) if there is a missing value for any hour of the day, we exclude that value and average the remaining values; (iii) if all values for a 24-hour period are missing, we delete the entire day.
+
