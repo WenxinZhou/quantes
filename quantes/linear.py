@@ -41,7 +41,7 @@ class low_dim():
     kernels = ["Laplacian", "Gaussian", "Logistic", "Uniform", "Epanechnikov"]
     weights = ["Exponential", "Multinomial", "Rademacher",
                "Gaussian", "Uniform", "Folded-normal"]
-    params = {'init_lr': 1, 'max_lr': 50, 'max_iter': 1e3, 'tol': 1e-6,
+    params = {'init_lr': 1, 'max_lr': 25, 'max_iter': 1e3, 'tol': 1e-6,
               'warm_start': True, 'nboot': 200, 'min_bandwidth': 1e-4}
 
     def __init__(self, X, Y, intercept=True, options=dict()):
