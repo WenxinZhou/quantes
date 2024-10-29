@@ -1,5 +1,5 @@
-import numpy as np
-from quantes.utils import soft_thresh
+from .config import np
+from .utils import soft_thresh
 
 
 class bbgd:
@@ -11,8 +11,8 @@ class bbgd:
         self.init_lr = params['init_lr']
         self.max_lr = params['max_lr']
         self.max_iter = params['max_iter']
-        self.lr_seq = np.zeros(int(params['max_iter']))
-        self.fn_seq = np.zeros(int(params['max_iter']))
+        self.lr_seq = [self.init_lr]
+        self.fn_seq = []
         self.niter = 0
         self.tol = params['tol']
 
@@ -20,31 +20,25 @@ class bbgd:
         grad0 = grad(x0)
         diff_x = -self.init_lr * grad0
         x1 = x0 + diff_x
-        self.lr_seq[0] = self.init_lr
-        self.fn_seq[0] = func(x1)
+        self.fn_seq.append(func(x1))
 
         while self.niter < self.max_iter - 1 and \
             np.linalg.norm(diff_x) > self.tol:
             grad1 = grad(x1)
             diff_grad = grad1 - grad0
-            r0, r1 = diff_x.dot(diff_x), diff_grad.dot(diff_grad)
-            if r1 == 0: lr = 1
-            else:
-                r01 = diff_grad.dot(diff_x)
-                lr = min(abs(r01/(r1+eps)), abs(r0/(r01+eps)))
-
-            if self.max_lr: lr = min(lr, self.max_lr)
+            r0, r1 = diff_x.dot(diff_x), diff_grad.dot(diff_grad) + eps
+            r01 = diff_grad.dot(diff_x)
+            lr = min(abs(r01/r1), abs(r0/r01), self.max_lr)
             grad0, diff_x = grad1, -lr*grad1
             x1 += diff_x
-            self.lr_seq[self.niter+1] = lr
-            self.fn_seq[self.niter+1] = func(x1)
+            self.lr_seq.append(lr)
+            self.fn_seq.append(func(x1))
             self.niter += 1
 
         if self.niter == self.max_iter:
             self.message = "Maximum number of iterations achieved in bbgd()"
         else:
             self.message = "Convergence achieved in bbgd()"
-
         self.x = x1
 
 

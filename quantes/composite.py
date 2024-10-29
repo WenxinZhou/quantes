@@ -1,9 +1,6 @@
-import numpy as np
-import numpy.random as rgt
-
-
-from quantes.utils import (conquer_weight, smooth_composite_check,
-                           soft_thresh, concave_weight)
+from .config import np
+from .utils import (to_gpu, conquer_weight, smooth_composite_check,
+                    soft_thresh, concave_weight)
 
 
 class high_dim:
@@ -25,6 +22,9 @@ class high_dim:
               'irw_tol': 1e-5, 'nsim': 200, 'min_bandwidth': 1e-4}
 
     def __init__(self, X, Y, options={}):
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n, self.p = X.shape
         self.X, self.Y = X, Y.reshape(self.n)
         self.mX, self.sdX = np.mean(X, axis=0), np.std(X, axis=0)
@@ -49,9 +49,10 @@ class high_dim:
 
 
     def uniform_weights(self, tau=np.array([])):
-        w = (rgt.uniform(0, 1, self.n) <= tau[0]) - tau[0]
+        w = (np.random.uniform(0, 1, self.n) <= tau[0]) - tau[0]
         for i in range(1, len(tau)):
-            w = np.hstack((w, (rgt.uniform(0, 1, self.n) <= tau[i]) - tau[i]))
+            w = np.hstack((w,
+                           (np.random.uniform(0,1,self.n) <= tau[i])-tau[i]))
         return w
 
 

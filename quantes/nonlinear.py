@@ -1,6 +1,10 @@
-import numpy as np
+from .config import np
+from .utils import (to_gpu, ncdf, npdf, mad,
+                    QuantLoss, JointLoss, HuberLoss, 
+                    HuberGrad, weighted_quantile,
+                    make_train_step_fn, make_val_step_fn, mini_batch)
 
-from scipy.stats import norm
+
 from scipy.optimize import minimize
 from scipy.sparse import csc_matrix
 
@@ -22,9 +26,6 @@ from torch.utils.data.dataset import random_split
 
 from enum import Enum
 
-from quantes.utils import (mad, QuantLoss, JointLoss, HuberLoss, 
-                           HuberGrad, weighted_quantile,
-                           make_train_step_fn, make_val_step_fn, mini_batch)
 
 
 ###############################################################################
@@ -98,7 +99,9 @@ class KRR:
             xsd (ndarray) : standard deviations of the original covariates
             K (ndarray) : n by n kernel matrix
         '''
-
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n = X.shape[0]
         self.Y = Y.reshape(self.n)
         self.nm = normalization
@@ -148,7 +151,7 @@ class KRR:
         if h == 0:
             out = np.where(x > 0, tau * x, (tau - 1) * x)
         elif self.smooth_method == 'convolution':
-            out = (tau - norm.cdf(-x/h)) * x \
+            out = (tau - ncdf(-x/h)) * x \
                   + (h/2) * np.sqrt(2/np.pi) * np.exp(-(x/h) ** 2 /2)
         elif self.smooth_method == 'moreau':
             out = np.where(x > tau*h, tau*x - tau**2 * h/2, 
@@ -165,7 +168,7 @@ class KRR:
         if h == 0:
             return np.where(x >= 0, self.tau, self.tau - 1)
         elif self.smooth_method == 'convolution':
-            return self.tau - norm.cdf(-x / h)
+            return self.tau - ncdf(-x / h)
         elif self.smooth_method == 'moreau':
             return np.where(x > self.tau * h, self.tau, 
                             np.where(x < (self.tau - 1) * h, 
@@ -476,6 +479,7 @@ class KRR:
         Args:
             x (ndarray): new input.
         '''
+        if self.GPU: x = to_gpu(x)
         return self.genK(x).T @ self.coef_m + self.bias_m
     
 
@@ -486,6 +490,7 @@ class KRR:
         Args:
             x (ndarray): new input.
         '''
+        if self.GPU: x = to_gpu(x)
         return self.genK(x).T @ self.coef_q + self.bias_q
 
 
@@ -496,6 +501,7 @@ class KRR:
         Args:
             x (ndarray): new input.
         '''
+        if self.GPU: x = to_gpu(x)
         return self.genK(x).T @ self.coef_e + self.bias_e
 
 
@@ -503,6 +509,7 @@ class KRR:
         '''
             Compute Bahadur representation of the expected shortfall estimator
         '''        
+        if self.GPU: x = to_gpu(x)
         A = self.K + self.alpha_e * np.eye(self.n)
         return np.linalg.solve(A, self.genK(x)) \
                * self.res_e.reshape(-1,1)
@@ -514,6 +521,7 @@ class KRR:
         '''
         self.tau, self.alpha_e = tau, alpha
         if x is not None:
+            if self.GPU: x = to_gpu(x)
             x = np.array(x)
             if np.ndim(x) <= 1:
                 x = x.reshape(-1, 1)
@@ -560,6 +568,7 @@ class KRR:
         '''
         self.tau, self.alpha_e = tau, alpha_seq
         if x is not None:
+            if self.GPU: x = to_gpu(x)
             if np.ndim(x) == 1:
                 x = x.reshape(-1, 1)
             if self.nm == 'MinMax':
@@ -622,8 +631,11 @@ class LocPoly:
     '''
     def __init__(self, X, Y, 
                  normalization=None, 
-                 kernel=norm.pdf, 
+                 kernel=npdf, 
                  smooth_method='convolution'):
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n = X.shape[0]
         self.Y = Y.reshape(self.n)
         self.nm = normalization
@@ -659,7 +671,8 @@ class LocPoly:
         '''
         x = np.array(x).reshape(-1)
         bw = np.array(bw).reshape(-1)
-        W = self.kernel_fn((self.X0 - x) / bw).prod(axis=1) 
+        W = self.kernel_fn((self.X0 - x) / bw).prod(axis=1)
+        if self.GPU: W = to_gpu(W)
         if not np.any(W):
             raise ValueError('Bandwidth too small')
         else:
@@ -673,7 +686,7 @@ class LocPoly:
         if h == 0:
             out = np.where(x > 0, tau * x, (tau - 1) * x)
         elif self.smooth_method == 'convolution':
-            out = (tau - norm.cdf(-x/h)) * x \
+            out = (tau - ncdf(-x/h)) * x \
                   + (h/2) * np.sqrt(2/np.pi) * np.exp(-(x/h) ** 2 /2)
         elif self.smooth_method == 'moreau':
             out = np.where(x > tau*h, tau*x - tau**2 * h/2, 
@@ -693,7 +706,7 @@ class LocPoly:
         if h == 0:
             return np.where(x >= 0, tau, tau - 1)
         elif self.smooth_method == 'convolution':
-            return tau - norm.cdf(-x / h)
+            return tau - ncdf(-x / h)
         elif self.smooth_method == 'moreau':
             return np.where(x > tau * h, tau, 
                             np.where(x < (tau - 1) * h, 
@@ -715,6 +728,7 @@ class LocPoly:
             tol: float, tolerance
             options: dict, optimization options
         '''
+        if self.GPU: x = to_gpu(x)
         y = self.Y
         Z = self.get_features(x, degree)
         W = self.get_weights(x, bw)
@@ -744,6 +758,7 @@ class LocPoly:
             tol: float, tolerance
             options: dict, optimization options
         '''
+        if self.GPU: x0 = to_gpu(x0)
         if np.ndim(x0) == 1:
             self.qt(x0, tau, bw, h, degree, method, tol, options)
             return self.bias_q
@@ -764,6 +779,7 @@ class LocPoly:
             bw: float, bandwidth
             degree: int, degree of the polynomial
         '''
+        if self.GPU: x0 = to_gpu(x0)
         Z = self.get_features(x0, degree)
         ZW = Z.T * self.get_weights(x0, bw)
         class sol: x = np.linalg.solve(ZW @ Z,  ZW @ self.Y)
@@ -781,6 +797,7 @@ class LocPoly:
             bw: float, bandwidth
             degree: int, degree of the polynomial
         '''
+        if self.GPU: x0 = to_gpu(x0)
         if np.ndim(x0) == 1:
             self.ls(x0, bw, degree)
             return self.bias_m
@@ -807,6 +824,7 @@ class LocPoly:
             tol: float, tolerance
             options: dict, optimization options
         '''
+        if self.GPU: x0 = to_gpu(x0)
         if fit_q is None:
             fit_q=self.qt_predict(self.X0, tau, bw, degree=degree, 
                                   method=method, tol=tol, options=options)

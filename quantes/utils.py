@@ -1,11 +1,37 @@
-import numpy as np
-import numpy.random as rgt
+from .config import np
 from scipy.stats import norm
 
 
 ###############################################################################
 ################## Utility Functions for Quantile Regression ##################
 ###############################################################################
+def to_cpu(x):
+    import numpy 
+    if type(x) == numpy.ndarray:
+        return x
+    return numpy.asnumpy(x)
+
+
+def to_gpu(x):
+    import cupy
+    if type(x) == cupy.ndarray:
+        return x
+    return cupy.asarray(x)
+
+
+def ncdf(x):
+    if np.__name__ == 'numpy':
+        return norm.cdf(x)
+    else:
+        return np.asarray(norm.cdf(x.get()))
+
+
+def npdf(x):
+    if np.__name__ == 'numpy':
+        return norm.pdf(x)
+    else:
+        return np.asarray(norm.pdf(x.get()))
+
 
 def mad(x):
     ''' 
@@ -19,13 +45,13 @@ def boot_weight(weight):
         Bootstrap (random) weights generator 
     '''
     boot = {'Multinomial': lambda n :
-            rgt.multinomial(n, pvals=np.ones(n)/n), 
-            'Exponential': lambda n : rgt.exponential(size=n), 
-            'Rademacher': lambda n : 2*rgt.binomial(1, 1/2, n), 
-            'Gaussian': lambda n : rgt.normal(1, 1, n), 
-            'Uniform': lambda n : rgt.uniform(0, 2, n), 
+            np.random.multinomial(n, pvals=np.ones(n)/n),
+            'Exponential': lambda n : np.random.exponential(scale=1, size=n),
+            'Rademacher': lambda n : 2*np.random.binomial(1, 1/2, n),
+            'Gaussian': lambda n : np.random.normal(1, 1, n),
+            'Uniform': lambda n : np.random.uniform(0, 2, n), 
             'Folded-normal': lambda n :
-            abs(rgt.normal(size=n)) * np.sqrt(.5 * np.pi)
+            abs(np.random.normal(size=n)) * np.sqrt(.5 * np.pi)
             }
     return boot[weight]
 
@@ -64,7 +90,7 @@ def smooth_check(x, tau=0.5, h=0.5, kernel='Laplacian', w=np.array([])):
         loss = lambda x: np.where(x >= 0, tau*x, (tau-1)*x) \
                          + (h/2) * np.exp(-abs(x)/h)
     elif kernel == 'Gaussian':
-        loss = lambda x: (tau - norm.cdf(-x/h)) * x \
+        loss = lambda x: (tau - ncdf(-x/h)) * x \
                               + (h/2) * np.sqrt(2 / np.pi) \
                                 * np.exp(-(x/h) ** 2 / 2)
     elif kernel == 'Logistic':
@@ -90,7 +116,7 @@ def conquer_weight(x, tau, kernel="Laplacian", w=np.array([])):
     if kernel=='Laplacian':
         Ker = lambda x : 0.5 + 0.5 * np.sign(x) * (1 - np.exp(-abs(x)))
     elif kernel=='Gaussian':
-        Ker = lambda x : norm.cdf(x)
+        Ker = lambda x : ncdf(x)
     elif kernel=='Logistic':
         Ker = lambda x : 1 / (1 + np.exp(-x))
     elif kernel=='Uniform':

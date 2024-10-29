@@ -1,7 +1,5 @@
-import numpy as np
-import numpy.random as rgt
-
-from quantes.utils import (prox_map, soft_thresh, concave_weight)
+from .config import np
+from .utils import (to_gpu, prox_map, soft_thresh, concave_weight)
 
 
 ###############################################################################
@@ -33,7 +31,9 @@ class proximal:
                 nsim : number of simulations for computing a data-driven lambda; 
                        default is 200.
         '''
-
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU: 
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n = len(Y)
         self.Y = Y.reshape(self.n)
         self.itcp = intercept
@@ -48,7 +48,7 @@ class proximal:
     def tuning(self, tau=0.5, standardize=True):
         X = self.X1 if standardize else self.X
         lambda_sim = \
-            np.array([max(abs(X.T@(tau - (rgt.uniform(0,1,self.n) <= tau))))
+            np.array([max(abs(X.T@(tau-(np.random.uniform(0,1,self.n)<=tau))))
                       for b in range(self.params['nsim'])])
         return lambda_sim/self.n
     
@@ -82,7 +82,7 @@ class proximal:
         if eta is None: eta = self._eta()
 
         if self.itcp:
-            Lambda = np.insert(Lambda * np.ones(dim-1), 0, 0)
+            Lambda = np.r_[[0], Lambda * np.ones(dim-1)] 
 
         k, dev = 0, 1
         while dev > self.params['tol'] and k < self.params['max_iter']:

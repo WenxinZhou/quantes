@@ -1,17 +1,15 @@
-import numpy as np
-import numpy.random as rgt
+from .config import np
+from .solvers import bbgd, lamm
+from .utils import (to_gpu, npdf, ncdf, mad, find_root, 
+                    boot_weight, concave_weight, smooth_check, conquer_weight,
+                    AHuber_fn, AHuber_grad, sparse_supp, sparse_proj, G2)
+from .admm import proximal
+
 from scipy.stats import norm
 from scipy.optimize import minimize
 from cvxopt import solvers, matrix
 solvers.options['show_progress'] = False
 
-
-from quantes.solvers import bbgd, lamm
-from quantes.utils import (mad, find_root, boot_weight, concave_weight,
-                           smooth_check, conquer_weight, AHuber_fn, AHuber_grad,
-                           sparse_supp, sparse_proj,
-                           G2)
-from quantes.admm import proximal
 
 
 ###############################################################################
@@ -63,6 +61,9 @@ class low_dim():
                 nboot: number of bootstrap samples for inference.
                 min_bandwidth: minimum bandwidth value; default is 1e-4.
         '''
+        self.GPU = True if np.__name__ == 'cupy' else False        
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n = X.shape[0]
         self.Y = Y.reshape(self.n)
         self.mX, self.sdX = np.mean(X, axis=0), np.std(X, axis=0)
@@ -285,8 +286,8 @@ class low_dim():
             model = self.fit(tau, h, kernel, 
                              standardize=standardize)
         h = model['bw']
-        hess_weight = norm.pdf(model['res']/h)
-        grad_weight = ( norm.cdf(-model['res']/h) - tau)**2
+        hess_weight = npdf(model['res']/h)
+        grad_weight = (ncdf(-model['res']/h) - tau)**2
         hat_V = (X.T * grad_weight) @ X/self.n
         inv_J = np.linalg.inv((X.T * hess_weight) @ X/(self.n * h))
         ACov = inv_J @ hat_V @ inv_J
@@ -493,6 +494,9 @@ class high_dim(low_dim):
                 nsim: number of simulations for computing a data-driven lambda; default is 200.
                 nboot: number of bootstrap samples for post-selection inference; default is 200.
         '''
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n, self.p = X.shape
         self.Y = Y.reshape(self.n)
         self.mX, self.sdX = np.mean(X, axis=0), np.std(X, axis=0)
@@ -531,7 +535,7 @@ class high_dim(low_dim):
 
         X = self.X1 if standardize else self.X
         lambda_sim = \
-            np.array([max(abs(X.T@(tau - (rgt.uniform(0,1,self.n) <= tau))))
+            np.array([max(abs(X.T@(tau-(np.random.uniform(0,1,self.n)<=tau))))
                       for b in range(self.params['nsim'])])
         return lambda_sim/self.n
 
@@ -559,7 +563,7 @@ class high_dim(low_dim):
             if self.itcp: lambda_vec[0] = 0
         else:
             lambda_vec = Lambda
-            if self.itcp: lambda_vec = np.insert(lambda_vec, 0, 0)
+            if self.itcp: lambda_vec = np.r_[[0], lambda_vec]
 
         ln = lambda b: np.mean(AHuber_fn(y - X@b, tau, robust))
         gd = lambda b: X.T@(-AHuber_grad(y - X@b, tau, robust))/n
@@ -629,7 +633,7 @@ class high_dim(low_dim):
             if self.itcp: lambda_vec[0] = 0
         else:
             lambda_vec = Lambda
-            if self.itcp: lambda_vec = np.insert(lambda_vec, 0, 0)
+            if self.itcp: lambda_vec = np.r_[[0], lambda_vec]
 
         fn = lambda b : smooth_check(y-X@b, tau, h, kernel, weight)
         gd = lambda b : X.T@(conquer_weight((X@b-y)/h, tau, kernel, weight))/n
@@ -718,10 +722,9 @@ class high_dim(low_dim):
         if standardize and adjust:
             beta0[self.itcp:] = beta0[self.itcp:]/self.sdX
             if self.itcp: beta0[0] -= self.mX @ beta0[1:]
-        nit_seq = np.array(nit_seq)
-            
+
         return {'beta': beta0, 'res': res, 'nstep': step, 'lambda': Lambda,
-                'niter': np.sum(nit_seq), 'nit_seq': nit_seq, 'bw': h}
+                'niter': sum(nit_seq), 'nit_seq': np.array(nit_seq), 'bw': h}
 
 
     def irw_als(self, tau=0.5, Lambda=np.array([]), robust=3,
@@ -827,7 +830,7 @@ class high_dim(low_dim):
                 'res_seq': res_seq,
                 'size_seq': np.sum(beta_seq[self.itcp:,:] != 0, axis=0),
                 'lambda_seq': lambda_seq,
-                'niter': np.sum(nit_seq),
+                'niter': sum(nit_seq),
                 'nit_seq': np.array(nit_seq), 
                 'bw': h}
 
@@ -1262,6 +1265,9 @@ class cv_lambda:
 
 
     def __init__(self, X, Y, intercept=True, options={}):
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X, Y = to_gpu(X), to_gpu(Y)
         self.n, self.p = X.shape
         self.X, self.Y = X, Y.reshape(self.n)
         self.itcp = intercept
@@ -1384,6 +1390,10 @@ class validate_lambda(cv_lambda):
     
     def __init__(self, X_train, Y_train, X_val, Y_val, 
                  intercept=True, options={}):
+        self.GPU = True if np.__name__ == 'cupy' else False
+        if self.GPU:
+            X_train, Y_train = to_gpu(X_train), to_gpu(Y_train)
+            X_val, Y_val = to_gpu(X_val), to_gpu(Y_val)
         self.n, self.p = X_train.shape
         self.X_train, self.Y_train = X_train, Y_train.reshape(self.n)
         self.X_val, self.Y_val = X_val, Y_val.reshape(len(Y_val))
@@ -1489,7 +1499,6 @@ class joint(low_dim):
         Returns:
             FZ loss function value.
         '''
-
         X = self.X
         if G2_type in {1, 2, 3}:
             Ymax = np.max(self.Y)
@@ -1731,7 +1740,7 @@ class joint(low_dim):
                            robust, standardize=standardize)
         boot_coef = np.empty((self.X.shape[1], B))
         for b in range(B):
-            idx = rgt.choice(np.arange(self.n), size=self.n)
+            idx = np.random.choice(np.arange(self.n), size=self.n)
             boot = joint(self.X[idx,self.itcp:], self.Y[idx], 
                          intercept=self.itcp)
             if loss == 'L2':
