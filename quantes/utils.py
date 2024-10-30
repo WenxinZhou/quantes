@@ -1,4 +1,5 @@
 from .config import np
+import numpy.random as rgt
 from scipy.stats import norm
 
 
@@ -44,15 +45,15 @@ def boot_weight(weight):
     '''
         Bootstrap (random) weights generator 
     '''
-    boot = {'Multinomial': lambda n :
-            np.random.multinomial(n, pvals=np.ones(n)/n),
-            'Exponential': lambda n : np.random.exponential(scale=1, size=n),
-            'Rademacher': lambda n : 2*np.random.binomial(1, 1/2, n),
-            'Gaussian': lambda n : np.random.normal(1, 1, n),
-            'Uniform': lambda n : np.random.uniform(0, 2, n), 
-            'Folded-normal': lambda n :
-            abs(np.random.normal(size=n)) * np.sqrt(.5 * np.pi)
-            }
+    boot = {
+        'Multinomial': lambda n : rgt.multinomial(n, pvals=np.ones(n)/n),
+        'Exponential': lambda n : rgt.exponential(scale=1, size=n),
+        'Rademacher': lambda n : 2*rgt.binomial(1, 1/2, n),
+        'Gaussian': lambda n : rgt.normal(1, 1, n),
+        'Uniform': lambda n : rgt.uniform(0, 2, n), 
+        'Folded-normal': lambda n : 
+                            abs(rgt.normal(size=n)) * np.sqrt(.5 * np.pi)
+                                }
     return boot[weight]
 
 

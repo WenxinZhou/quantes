@@ -1,4 +1,5 @@
 from .config import np
+import numpy.random as rgt
 from .solvers import bbgd, lamm
 from .utils import (to_gpu, npdf, ncdf, mad, find_root, 
                     boot_weight, concave_weight, smooth_check, conquer_weight,
@@ -328,8 +329,11 @@ class low_dim():
         mb_beta[:,0] = np.copy(mdl['beta'])
 
         for b in range(self.params['nboot']):
-            mdl = self.fit(tau, h, kernel, beta0=mb_beta[:,0],
-                           weight=boot_weight(weight)(self.n),
+            weight_b = boot_weight(weight)(self.n)
+            if self.GPU:
+                weight_b = to_gpu(weight_b)
+            mdl = self.fit(tau, h, kernel, 
+                           beta0=mb_beta[:,0], weight=weight_b, 
                            standardize=standardize, solver=solver)
             mb_beta[:,b+1] = mdl['beta']
 
@@ -534,9 +538,10 @@ class high_dim(low_dim):
         '''
 
         X = self.X1 if standardize else self.X
+        if np.__name__ == 'cupy': X = X.get()
         lambda_sim = \
-            np.array([max(abs(X.T@(tau-(np.random.uniform(0,1,self.n)<=tau))))
-                      for b in range(self.params['nsim'])])
+            np.array([max(abs(X.T @ (tau - rgt.binomial(1, tau, self.n)))) 
+                      for _ in range(self.params['nsim'])])
         return lambda_sim/self.n
 
 
@@ -1039,11 +1044,14 @@ class high_dim(low_dim):
                 raise ValueError("Number of cores exceeds the limit")
 
         def bootstrap(b):
+            weight_b = boot_weight(weight)(self.n)
+            if self.GPU: 
+                weight_b = to_gpu(weight_b)
             boot_fit = self.irw(tau, Lambda, h, kernel,
                                 beta0=model['beta'],
                                 penalty=penalty, a=a, nstep=nstep,
                                 standardize=standardize,
-                                weight=boot_weight(weight)(self.n))
+                                weight=weight_b)
             return boot_fit['beta']
 
         if not parallel:
@@ -1740,7 +1748,7 @@ class joint(low_dim):
                            robust, standardize=standardize)
         boot_coef = np.empty((self.X.shape[1], B))
         for b in range(B):
-            idx = np.random.choice(np.arange(self.n), size=self.n)
+            idx = rgt.choice(np.arange(self.n), size=self.n)
             boot = joint(self.X[idx,self.itcp:], self.Y[idx], 
                          intercept=self.itcp)
             if loss == 'L2':

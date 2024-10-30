@@ -1,4 +1,5 @@
 from .config import np
+import numpy.random as rgt
 from .utils import (to_gpu, conquer_weight, smooth_composite_check,
                     soft_thresh, concave_weight)
 
@@ -49,11 +50,9 @@ class high_dim:
 
 
     def uniform_weights(self, tau=np.array([])):
-        w = (np.random.uniform(0, 1, self.n) <= tau[0]) - tau[0]
-        for i in range(1, len(tau)):
-            w = np.hstack((w,
-                           (np.random.uniform(0,1,self.n) <= tau[i])-tau[i]))
-        return w
+        w = [rgt.binomial(1, tau[i], self.n) - tau[i] 
+             for i in range(len(tau))]        
+        return np.hstack(w)
 
 
     def lambda_tuning(self, XX, tau=np.array([])):

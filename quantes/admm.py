@@ -1,4 +1,5 @@
 from .config import np
+import numpy.random as rgt
 from .utils import (to_gpu, prox_map, soft_thresh, concave_weight)
 
 
@@ -47,9 +48,10 @@ class proximal:
 
     def tuning(self, tau=0.5, standardize=True):
         X = self.X1 if standardize else self.X
+        if self.GPU: X = X.get()
         lambda_sim = \
-            np.array([max(abs(X.T@(tau-(np.random.uniform(0,1,self.n)<=tau))))
-                      for b in range(self.params['nsim'])])
+            np.array([max(abs(X.T@(tau - rgt.binomial(1, tau, self.n))))
+                      for _ in range(self.params['nsim'])])
         return lambda_sim/self.n
     
 
