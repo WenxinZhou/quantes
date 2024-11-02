@@ -369,3 +369,12 @@ def check_loss(x, tau):
 def mad(x):
     ''' Median absolute deviation '''
     return 1.4826 * np.median(np.abs(x - np.median(x)))
+
+
+def cov_generate(std, corr=0.5):
+    p = len(std)
+    R = np.zeros(shape=[p,p])
+    for j in range(p-1):
+        R[j, j+1:] = np.array(range(1, len(R[j,j+1:])+1))
+    R += R.T
+    return np.outer(std, std) * (corr*np.ones(shape=[p,p]))** R
