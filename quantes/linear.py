@@ -3,7 +3,7 @@ import numpy.random as rgt
 from .solvers import bbgd, lamm
 from .utils import (to_gpu, npdf, ncdf, mad, find_root, 
                     boot_weight, concave_weight, smooth_check, conquer_weight,
-                    AHuber_fn, AHuber_grad, sparse_supp, sparse_proj, G2)
+                    ahuber_fn, ahuber_grad, sparse_supp, sparse_proj, G2)
 from .admm import proximal
 
 from scipy.stats import norm
@@ -40,20 +40,20 @@ class low_dim():
     kernels = ["Laplacian", "Gaussian", "Logistic", "Uniform", "Epanechnikov"]
     weights = ["Exponential", "Multinomial", "Rademacher",
                "Gaussian", "Uniform", "Folded-normal"]
-    params = {'init_lr': 1, 'max_lr': 25, 'max_iter': 1e3, 'tol': 1e-6,
+    params = {'init_lr': 1, 'max_lr': 25, 'max_iter': 500, 'tol': 1e-6,
               'warm_start': True, 'nboot': 200, 'min_bandwidth': 1e-4}
 
     def __init__(self, X, Y, intercept=True, options=dict()):
         '''
         Args:
-            X: n by p matrix of covariates; each row is an observation vector.
+            X: n by p ndarray, where n is the number of observations, 
+               and p is the number of predictors.
             Y: an ndarray of response variables.
             intercept: logical flag for adding an intercept to the model.
             options: a dictionary of internal statistical and optimization parameters.
                 max_iter: maximum numder of iterations in the GD-BB algorithm; 
                           default is 500.
-                max_lr: maximum step size/learning rate. 
-                        If set to False, there is no contraint on the maximum step size.
+                max_lr: upper bound of the step size/learning rate; default is 25.
                 tol: the iteration will stop when max{|g_j|: j = 1, ..., p} <= tol
                      where g_j is the j-th component of the (smoothed) gradient; 
                      default is 1e-4.
@@ -72,8 +72,7 @@ class low_dim():
 
         if intercept:
             self.X = np.c_[np.ones(self.n), X[:]]
-            self.X1 = np.c_[np.ones(self.n), 
-                            (X[:] - self.mX)/self.sdX]
+            self.X1 = np.c_[np.ones(self.n), (X[:] - self.mX)/self.sdX]
         else:
             self.X, self.X1 = X[:], X[:]/self.sdX
 
@@ -83,13 +82,12 @@ class low_dim():
     def bandwidth(self, tau):
         n, p = self.X.shape
         h0 = min((p + np.log(n))/n, 0.5)**0.4
-        return max(self.params['min_bandwidth'], 
-                   h0 * (tau-tau**2)**0.5)
+        return max(self.params['min_bandwidth'], h0 * (tau-tau**2)**0.5)
 
 
     def als(self, tau=0.5, robust=5,
             standardize=True, adjust=True, scale=False,
-            solver='BB-GD', options=None):
+            solver='BBGD', options=None):
         '''
             Asymmetric Least Squares/Huber Regression
         '''
@@ -101,9 +99,9 @@ class low_dim():
 
         if scale == True:
             asym = lambda x : np.where(x < 0, (1-tau) * x, tau * x)
-            fn0 = lambda b: AHuber_fn(y - X@b, tau, 0)
-            gd0 = lambda b: X.T@(-AHuber_grad(y - X@b, tau, 0)) / n
-            if solver == 'BB-GD':
+            fn0 = lambda b: ahuber_fn(y - X@b, tau, 0)
+            gd0 = lambda b: X.T@(-ahuber_grad(y - X@b, tau, 0)) / n
+            if solver == 'BBGD':
                 model = bbgd(self.params)
                 model.minimize(fn0, gd0, beta)
             elif solver == 'BFGS':
@@ -113,9 +111,9 @@ class low_dim():
             beta = model.x
             robust = robust * mad(asym(y - X@beta))
 
-        fn = lambda b: AHuber_fn(y - X@b, tau, robust)
-        gd = lambda b: X.T@(-AHuber_grad(y - X@b, tau, robust)) / n
-        if solver == 'BB-GD':
+        fn = lambda b: ahuber_fn(y - X@b, tau, robust)
+        gd = lambda b: X.T@(-ahuber_grad(y - X@b, tau, robust)) / n
+        if solver == 'BBGD':
             model = bbgd(self.params)
             model.minimize(fn, gd, beta)
         elif solver == 'BFGS':
@@ -138,7 +136,7 @@ class low_dim():
     def fit(self, tau=0.5, h=None, kernel="Laplacian",
             beta0=np.array([]), weight=np.array([]), 
             standardize=True, adjust=True,
-            solver='BB-GD', options=None):
+            solver='BBGD', options=None):
         '''
             Convolution Smoothed Quantile Regression
 
@@ -153,7 +151,7 @@ class low_dim():
                          prior to fitting the model; default is TRUE.
             adjust: logical flag for returning coefficients on the original scale.
             solver: a character string representing the optimization algorithm;
-                     default is 'BB-GD'.
+                     default is 'BBGD'.
             options : a dictionary of solver options. Default is 
                       options={'gtol': 1e-05, 'norm': inf, 'maxiter': None,
                                'disp': False, 'return_all': False}
@@ -185,7 +183,7 @@ class low_dim():
         grad = lambda b : X.T@(conquer_weight((X@b-y)/bw, tau, 
                                               kernel, weight))/n
         
-        if solver == 'BB-GD':
+        if solver == 'BBGD':
             model = bbgd(self.params)
             model.minimize(func, grad, beta0)
         elif solver == 'BFGS':
@@ -208,13 +206,13 @@ class low_dim():
 
     def bw_path(self, tau=0.5, h_seq=np.array([]), L=20, 
                 kernel="Laplacian", standardize=True, 
-                adjust=True, solver='BB-GD'):
+                adjust=True, solver='BBGD'):
         '''
             Solution Path of Conquer at a Sequence of Bandwidths
 
         Args:
             tau : quantile level; default is 0.5.
-            h_seq : a sequence of bandwidths.
+            h_seq : an ndarray of bandwidths; default is np.array([]).
             L : number of bandwdiths; default is 20.
             kernel : a character string representing one of the built-in
                      smoothing kernels; default is "Laplacian".
@@ -259,7 +257,7 @@ class low_dim():
 
         
     def norm_ci(self, tau=0.5, h=None, kernel="Laplacian", 
-                solver='BB-GD', alpha=0.05, standardize=True):
+                solver='BBGD', alpha=0.05, standardize=True):
         '''
             Normal Calibrated Confidence Intervals
         
@@ -269,14 +267,14 @@ class low_dim():
             kernel : a character string representing one of the built-in 
                      smoothing kernels; default is "Laplacian".
             solver : a character string representing the method for 
-                     computing the estimate; default is 'BB-GD'.
+                     computing the estimate; default is 'BBGD'.
             alpha : miscoverage level for each CI; default is 0.05.
             standardize : logical flag for x variable standardization 
                           prior to fitting the model; default is TRUE.
 
         Returns:
             'beta' : conquer estimate.
-            'normal' : numpy array. Normal CIs based on estimated 
+            'normal' : ndarray, normal CIs based on estimated 
                           asymptotic covariance matrix.
         '''
         if h is None: h = self.bandwidth(tau)
@@ -284,8 +282,7 @@ class low_dim():
         if solver=='BFGS':
             model = self.fit(tau, h, kernel, solver='BFGS')
         else:
-            model = self.fit(tau, h, kernel, 
-                             standardize=standardize)
+            model = self.fit(tau, h, kernel, standardize=standardize)
         h = model['bw']
         hess_weight = npdf(model['res']/h)
         grad_weight = (ncdf(-model['res']/h) - tau)**2
@@ -299,7 +296,7 @@ class low_dim():
 
 
     def mb(self, tau=0.5, h=None, kernel="Laplacian", 
-           weight="Exponential", standardize=True, solver='BB-GD'):
+           weight="Exponential", standardize=True, solver='BBGD'):
         '''
             Multiplier Bootstrap Estimates
 
@@ -314,7 +311,7 @@ class low_dim():
                           prior to fitting the model; default is TRUE.
 
         Returns:
-            'mb_beta' : numpy array. 
+            'mb_beta' : ndarray,
                         1st column: conquer estimate; 
                         2nd to last: bootstrap estimates.
         '''
@@ -323,19 +320,17 @@ class low_dim():
         if weight not in self.weights:
             raise ValueError('Distribution "{}" is not included'.format(weight))
 
-        mdl = self.fit(tau, h, kernel, standardize=standardize, 
-                       adjust=False, solver=solver)
-        mb_beta = np.empty([len(mdl['beta']), self.params['nboot']+1])
-        mb_beta[:,0] = np.copy(mdl['beta'])
+        qr = self.fit(tau, h, kernel, standardize=standardize,
+                      adjust=False, solver=solver)
+        mb_beta = np.empty([len(qr['beta']), self.params['nboot']+1])
+        mb_beta[:,0] = np.copy(qr['beta'])
 
         for b in range(self.params['nboot']):
             weight_b = boot_weight(weight)(self.n)
-            if self.GPU:
-                weight_b = to_gpu(weight_b)
-            mdl = self.fit(tau, h, kernel, 
-                           beta0=mb_beta[:,0], weight=weight_b, 
+            if self.GPU: weight_b = to_gpu(weight_b)
+            wqr = self.fit(tau, h, kernel, beta0=qr['beta'], weight=weight_b,
                            standardize=standardize, solver=solver)
-            mb_beta[:,b+1] = mdl['beta']
+            mb_beta[:,b+1] = wqr['beta']
 
         if standardize:
             mb_beta[self.itcp:,0] = mb_beta[self.itcp:,0]/self.sdX
@@ -349,7 +344,7 @@ class low_dim():
 
     def mb_ci(self, tau=0.5, h=None, kernel="Laplacian", 
               weight="Exponential", alpha=0.05, 
-              standardize=True, solver='BB-GD'):
+              standardize=True, solver='BBGD'):
         '''
             Multiplier Bootstrap Confidence Intervals
 
@@ -367,12 +362,12 @@ class low_dim():
 
         Returns
         -------
-        'boot_beta' : numpy array. 
+        'boot_beta' : ndarray,
                       1st column: conquer estimate; 
                       2nd to last: bootstrap estimates.
-        'percentile' : numpy array. Percentile bootstrap CI.
-        'pivotal' : numpy array. Pivotal bootstrap CI.
-        'normal' : numpy array. Normal-based CI using bootstrap variance estimates.
+        'percentile' : ndarray, percentile bootstrap CI.
+        'pivotal' : ndarray, pivotal bootstrap CI.
+        'normal' : ndarray, normal-based CI using bootstrap variance estimates.
         '''
         if h==None: h = self.bandwidth(tau)
         
@@ -412,7 +407,6 @@ class low_dim():
         '''
 
         y, X = self.Y, self.X
-
         huber_loss = lambda u : \
             np.where(abs(u)<=c, 0.5 * u**2, c * abs(u) - 0.5 * c**2)
         huber_grad = lambda u : np.where(abs(u)<=c, u, np.sign(u)*c)
@@ -479,7 +473,8 @@ class high_dim(low_dim):
 
         '''
         Args:
-            X: n by p matrix of covariates; each row is an observation vector.
+            X: n by p ndarray, where n is the number of observations, 
+               and p is the number of predictors.
             Y: an ndarray of response variables.
             intercept: logical flag for adding an intercept to the model.
             options: a dictionary of internal statistical and optimization parameters.
@@ -499,8 +494,7 @@ class high_dim(low_dim):
                 nboot: number of bootstrap samples for post-selection inference; default is 200.
         '''
         self.GPU = True if np.__name__ == 'cupy' else False
-        if self.GPU:
-            X, Y = to_gpu(X), to_gpu(Y)
+        if self.GPU: X, Y = to_gpu(X), to_gpu(Y)
         self.n, self.p = X.shape
         self.Y = Y.reshape(self.n)
         self.mX, self.sdX = np.mean(X, axis=0), np.std(X, axis=0)
@@ -570,8 +564,8 @@ class high_dim(low_dim):
             lambda_vec = Lambda
             if self.itcp: lambda_vec = np.r_[[0], lambda_vec]
 
-        ln = lambda b: np.mean(AHuber_fn(y - X@b, tau, robust))
-        gd = lambda b: X.T@(-AHuber_grad(y - X@b, tau, robust))/n
+        ln = lambda b: np.mean(ahuber_fn(y - X@b, tau, robust))
+        gd = lambda b: X.T@(-ahuber_grad(y - X@b, tau, robust))/n
         model = lamm(self.params)
         model.minimize(ln, gd, beta0, lambda_vec)
         beta = model.x
@@ -770,7 +764,7 @@ class high_dim(low_dim):
                 'lambda': Lambda, 'robust': robust}
     
 
-    def l1_path(self, tau, 
+    def l1_path(self, tau=0.5, 
                 lambda_seq=np.array([]), nlambda=50, order="descend",
                 h=None, kernel="Laplacian", 
                 standardize=True, adjust=True):
@@ -840,7 +834,7 @@ class high_dim(low_dim):
                 'bw': h}
 
 
-    def irw_path(self, tau, 
+    def irw_path(self, tau=0.5, 
                  lambda_seq=np.array([]), nlambda=50, order="descend",
                  h=None, kernel="Laplacian",
                  penalty="SCAD", a=3.7, nstep=3, 
@@ -1014,7 +1008,7 @@ class high_dim(low_dim):
             ncore : number of cores used for parallel computing.
         
         Returns:
-            'boot_beta' : numpy array. 
+            'boot_beta' : ndarray,
                           1st column: penalized conquer estimate; 
                           2nd to last: bootstrap estimates.
             'majority_vote' : selected model by majority vote.
@@ -1043,10 +1037,9 @@ class high_dim(low_dim):
             if ncore > max_ncore: 
                 raise ValueError("Number of cores exceeds the limit")
 
-        def bootstrap(b):
+        def boot_irw():
             weight_b = boot_weight(weight)(self.n)
-            if self.GPU: 
-                weight_b = to_gpu(weight_b)
+            if self.GPU: weight_b = to_gpu(weight_b)
             boot_fit = self.irw(tau, Lambda, h, kernel,
                                 beta0=model['beta'],
                                 penalty=penalty, a=a, nstep=nstep,
@@ -1055,13 +1048,13 @@ class high_dim(low_dim):
             return boot_fit['beta']
 
         if not parallel:
-            for b in range(self.params['nboot']): 
-                mb_beta[:,b+1] = bootstrap(b)
+            mb_beta[:,1:] = np.array([boot_irw() 
+                                      for _ in range(self.params['nboot'])]).T
         else:
             from joblib import Parallel, delayed
             boot_results \
-                = Parallel(n_jobs=ncore)(delayed(bootstrap)(b)
-                                         for b in range(self.params['nboot']))
+                = Parallel(n_jobs=ncore)(delayed(boot_irw)()
+                                         for _ in range(self.params['nboot']))
             mb_beta[:,1:] = np.array(boot_results).T
         
         ## delete NaN bootstrap estimates (when using Gaussian weights)
@@ -1091,23 +1084,23 @@ class high_dim(low_dim):
             Post-Selection-Inference via Bootstrap
 
         Returns:
-            'boot_beta' : numpy array. 
+            'boot_beta' : ndarray,
                           1st column: penalized conquer estimate; 
                           2nd to last: bootstrap estimates.
             'majority_vote' : selected model by majority vote.
             'intersection' : selected model by intersecting.
-            'percentile' : numpy array. Percentile bootstrap CI.
-            'pivotal' : numpy array. Pivotal bootstrap CI.
-            'normal' : numpy array. Normal-based CI using bootstrap variance estimates.
+            'percentile' : ndarray, percentile bootstrap CI.
+            'pivotal' : ndarray, pivotal bootstrap CI.
+            'normal' : ndarray, normal-based CI using bootstrap variance estimates.
         '''
 
         mb_model = self.boot_select(tau, Lambda, h, kernel, weight,
                                     penalty, a, nstep, standardize,
                                     parallel, ncore)
         
-        per = np.empty([self.p + self.itcp, 2])
-        piv = np.empty([self.p + self.itcp, 2])
-        clt = np.empty([self.p + self.itcp, 2])
+        per = np.zeros([self.p + self.itcp, 2])
+        piv = np.zeros([self.p + self.itcp, 2])
+        clt = np.zeros([self.p + self.itcp, 2])
 
         # post-selection bootstrap inference
         X_select = self.X[:, mb_model['majority_vote']+self.itcp]
@@ -1137,8 +1130,7 @@ class high_dim(low_dim):
 
     def l0(self, tau=0.5, h=None, kernel='Laplacian', 
            sparsity=5, exp_size=5, beta0=np.array([]),
-           standardize=True, adjust=True,
-           tol=1e-5, max_iter=1e3):
+           standardize=True, adjust=True, tol=1e-5, max_iter=1e3):
         '''
             L0-Penalized Conquer via Two-Step Iterative Hard-Thresholding
 
@@ -1169,7 +1161,7 @@ class high_dim(low_dim):
 
         if h is None: 
             h0 = min((sparsity + np.log(self.n))/self.n, 0.5) ** 0.4
-            h = max(0.01, h0 * (tau-tau**2) ** 0.5)
+            h = max(self.params['min_bandwidth'], h0 * (tau-tau**2) ** 0.5)
         if len(beta0) == 0: beta0 = np.zeros(X.shape[1])
         
         t, dev = 0, 1
@@ -1197,7 +1189,7 @@ class high_dim(low_dim):
                 'niter': t}
 
 
-    def l0_path(self, tau, h=None, kernel='Laplacian', 
+    def l0_path(self, tau=0.5, h=None, kernel='Laplacian', 
                 sparsity_seq=np.array([]), order='ascend',
                 sparsity_max=20, exp_size=5, 
                 standardize=True, adjust=True,
@@ -1239,7 +1231,8 @@ class high_dim(low_dim):
 
         if h is None: 
             h0 = np.minimum((sparsity_seq + np.log(self.n))/self.n, 0.5)
-            h = np.maximum(0.01, h0 ** 0.4 * (tau-tau**2) ** 0.5)
+            h = np.maximum(self.params['min_bandwidth'], 
+                           h0 ** 0.4 * (tau-tau**2) ** 0.5)
         else:
             h = h * np.ones(L)
 
@@ -1274,8 +1267,7 @@ class cv_lambda:
 
     def __init__(self, X, Y, intercept=True, options={}):
         self.GPU = True if np.__name__ == 'cupy' else False
-        if self.GPU:
-            X, Y = to_gpu(X), to_gpu(Y)
+        if self.GPU: X, Y = to_gpu(X), to_gpu(Y)
         self.n, self.p = X.shape
         self.X, self.Y = X, Y.reshape(self.n)
         self.itcp = intercept

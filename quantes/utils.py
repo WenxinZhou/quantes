@@ -57,7 +57,7 @@ def boot_weight(weight):
     return boot[weight]
 
 
-def AHuber_fn(x, tau=.5, c=0):
+def ahuber_fn(x, tau=.5, c=0):
     ''' 
         Asymmetric Huber loss 
     '''
@@ -65,14 +65,13 @@ def AHuber_fn(x, tau=.5, c=0):
     if c == 0:
         fn = 0.5 * x**2
     else:
-        fn = np.where(abs(x) <= c, 0.5 * x**2,
-                      c * abs(x) - 0.5 * c**2)
+        fn = np.where(abs(x) <= c, 0.5 * x**2, c * abs(x) - 0.5 * c**2)
     fn[pos] *= tau
     fn[~pos] *= 1 - tau
     return np.mean(fn)
 
 
-def AHuber_grad(x, tau=.5, c=0):
+def ahuber_grad(x, tau=.5, c=0):
     ''' 
         Gradient of asymmetric Huber loss 
     '''
