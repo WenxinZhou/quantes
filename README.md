@@ -13,7 +13,7 @@ The `nonlinear` modules contains three classes, `KRR`, `LocPoly` and `FNN`, whic
 
 ```
 python >= 3.9, numpy, matplotlib, scipy, scikit-learn, cvxopt, qpsolvers, torch
-optional: osqp
+optional: osqp, cupy
 ```
 
 
