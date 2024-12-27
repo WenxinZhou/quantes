@@ -6,7 +6,7 @@ The `low_dim` class in the `linear` module applies a convolution smoothing appro
 Estimation and inference for sparse ES regression are currently under construction ([Zhang et al., 2023](https://arxiv.org/abs/2307.02695)). 
 
 
-The `nonlinear` modules contains three classes, `KRR`, `LocPoly` and `FNN`, which implement three nonparametric joint quantile and expected shortfall estimators using kernel ridge regression ([Yu et al., 2024](https://drive.google.com/file/d/12ttrz434FOOCsYwew9E5IkfdP9zlrXwJ/view?usp=sharing)), local polynomial regression ([Olma, 2021](https://arxiv.org/abs/2109.06150)), and feedforward neural network regression (Yu et al. 2024+), respectively. For fitting nonparametric QR through the `qt()` method in both `KRR` and `FNN`, there is a `smooth` option available. When set to `TRUE`, it uses the Gaussian kernel convoluted check loss. For fitting nonparametric ES regression using (nonparametrically) generated surrogate response variables, the `es()` method in `FNN` provides two options: *squared loss* (`robust=FALSE`) and the *Huber loss* (`robust=TRUE`); the `res()` method in `KRR` fits robust ES kernel ridge regression using the Huber loss. Currently, the `es()` method in the `LocPoly` module uses only the squared loss to compute the two-step local polynomial ES regression estimator.
+The `nonlinear` modules contains three classes, `KRR`, `LocPoly` and `FNN`, which implement three nonparametric joint quantile and expected shortfall estimators using kernel ridge regression ([Yu et al., 2024](https://doi.org/10.1080/01621459.2024.2441657)), local polynomial regression ([Olma, 2021](https://arxiv.org/abs/2109.06150)), and feedforward neural network regression (Yu et al. 2024+), respectively. For fitting nonparametric QR through the `qt()` method in both `KRR` and `FNN`, there is a `smooth` option available. When set to `TRUE`, it uses the Gaussian kernel convoluted check loss. For fitting nonparametric ES regression using (nonparametrically) generated surrogate response variables, the `es()` method in `FNN` provides two options: *squared loss* (`robust=FALSE`) and the *Huber loss* (`robust=TRUE`); the `res()` method in `KRR` fits robust ES kernel ridge regression using the Huber loss. Currently, the `es()` method in the `LocPoly` module uses only the squared loss to compute the two-step local polynomial ES regression estimator.
 
 
 ## Dependencies
@@ -237,7 +237,7 @@ Pan, X., Sun, Q. and Zhou, W.-X. (2021). Iteratively reweighted *l<sub>1</sub>*-
 
 Tan, K. M., Wang, L. and Zhou, W.-X. (2022). High-dimensional quantile regression: convolution smoothing and concave regularization. *J. R. Stat. Soc. B.*  **84**(1) 205-233. [Paper](https://rss.onlinelibrary.wiley.com/doi/10.1111/rssb.12485)
 
-Yu, M., Wang, Y., Xie, S., Tan, K. M. and Zhou, W.-X. (2024). Estimation and inference for nonparametric expected shortfall regression over RKHS. [Paper](https://drive.google.com/file/d/12ttrz434FOOCsYwew9E5IkfdP9zlrXwJ/view?usp=sharing)
+Yu, M., Wang, Y., Xie, S., Tan, K. M. and Zhou, W.-X. (2024). Estimation and inference for nonparametric expected shortfall regression over RKHS. [Paper](https://doi.org/10.1080/01621459.2024.2441657)
 
 Yu, M., Tan, K. M., Wang, H. J. and Zhou, W.-X. (2024+). Deep neural expected shortfall regression with tail-robustness. Ongoing work.
 
